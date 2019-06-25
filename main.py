@@ -62,7 +62,6 @@ async def select(mailbox: str, token: str = Header(None)):
                 "to": envelope.to,
                 "bcc": envelope.bcc,
                 "cc": envelope.cc,
-                # "count": envelope.count,
                 "in_reply_to": envelope.in_reply_to,
                 "reply_to": envelope.reply_to,
             })
