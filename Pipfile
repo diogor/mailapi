@@ -10,6 +10,7 @@ pylint = "*"
 fastapi = "*"
 uvicorn = "*"
 imapclient = "*"
+tinydb = "*"
 
 [requires]
 python_version = "3.7"
