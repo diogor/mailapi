@@ -48,7 +48,7 @@ async def root():
 @app.get("/select/")
 async def select(mailbox: str, token: str = Header(None)):
     m = connect_imap(token)
-    box = m.select_folder(mailbox)
+    m.select_folder(mailbox)
     messages = m.search()
     lista = []
     for mid, data in m.fetch(messages, ['ENVELOPE']).items():
