@@ -51,7 +51,7 @@ async def select(mailbox: str, token: str = Header(None)):
     m.select_folder(mailbox)
     messages = m.search()
     lista = []
-    for mid, data in m.fetch(messages, ['ENVELOPE']).items():
+    for mid, data in m.fetch(messages, ['FLAGS', 'ENVELOPE']).items():
         envelope = data[b'ENVELOPE']
         lista.append(
             {
@@ -64,6 +64,7 @@ async def select(mailbox: str, token: str = Header(None)):
                 "cc": envelope.cc,
                 "in_reply_to": envelope.in_reply_to,
                 "reply_to": envelope.reply_to,
+                "flags": data[b'FLAGS']
             })
     return lista
 
