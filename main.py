@@ -1,8 +1,10 @@
 import ssl
+import email
 from uuid import uuid4
 from tinydb import TinyDB, Query
 from tinydb.queries import where
 from fastapi import FastAPI, Header
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 from starlette.status import (HTTP_400_BAD_REQUEST,
                               HTTP_500_INTERNAL_SERVER_ERROR,
@@ -16,6 +18,19 @@ class Login(BaseModel):
 
 
 app = FastAPI()
+
+origins = [
+    "*.dr6.com.br",
+    "*.hipsters.live"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def connect() -> IMAPClient:
     ssl_context = ssl.create_default_context()
@@ -45,9 +60,32 @@ async def root():
     s = m.noop()
     return {"message": s}
 
-@app.get("/select/")
-async def select(mailbox: str, token: str = Header(None)):
+@app.get("/select/{mailbox}/{msgid}")
+async def message(mailbox: str, msgid: int, response: Response, token: str = Header(None)):
     m = connect_imap(token)
+    if not m:
+        response.status_code = HTTP_401_UNAUTHORIZED
+        return None
+
+    m.select_folder(mailbox)
+    f = m.fetch(msgid, ['RFC822'])
+    message = email.message_from_bytes(f[msgid][b'RFC822'])
+
+    body = ""
+    if message.is_multipart():
+        for payload in message.get_payload():
+            body += payload.get_payload()
+    else:
+        body = message.get_payload()
+    return {"header": message, "payload": body}
+
+@app.get("/select/{mailbox}")
+async def select(mailbox: str, response: Response, token: str = Header(None)):
+    m = connect_imap(token)
+    if not m:
+        response.status_code = HTTP_401_UNAUTHORIZED
+        return None
+
     m.select_folder(mailbox)
     messages = m.search()
     lista = []
@@ -59,14 +97,16 @@ async def select(mailbox: str, token: str = Header(None)):
                 "subject": envelope.subject.decode(),
                 "date": envelope.date,
                 "sender": envelope.sender,
+                "senders_emails": ";".join([f'{s[2].decode()}@{s[3].decode()}' for s in envelope.sender]),
                 "to": envelope.to,
                 "bcc": envelope.bcc,
                 "cc": envelope.cc,
                 "in_reply_to": envelope.in_reply_to,
                 "reply_to": envelope.reply_to,
-                "flags": data[b'FLAGS']
+                "flags": data[b'FLAGS'],
+                "is_seen": b'\\Seen' in data[b'FLAGS']
             })
-    return lista
+    return sorted(lista, key = lambda i: i['date'], reverse=True) 
 
 @app.get("/mailboxes/")
 async def mailboxes(response: Response, token: str = Header(None)):
@@ -77,7 +117,7 @@ async def mailboxes(response: Response, token: str = Header(None)):
         return None
 
     folders = m.list_folders()
-    return folders
+    return [folder[-1:][0] for folder in folders]
 
 @app.post("/login/")
 async def login(credentials: Login, response: Response):
