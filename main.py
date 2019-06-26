@@ -20,8 +20,8 @@ class Login(BaseModel):
 app = FastAPI()
 
 origins = [
-    "*.dr6.com.br",
-    "*.hipsters.live"
+    "localhost",
+    "https://mail.hipsters.live"
 ]
 
 app.add_middleware(
