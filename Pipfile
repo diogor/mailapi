@@ -13,6 +13,7 @@ uvicorn = "*"
 imapclient = "*"
 tinydb = "*"
 lxml = "*"
+gunicorn = "*"
 
 [requires]
 python_version = "3.7"
