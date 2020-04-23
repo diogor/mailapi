@@ -13,6 +13,3 @@ uvicorn = "*"
 imapclient = "*"
 tinydb = "*"
 lxml = "*"
-
-[requires]
-python_version = "3.7"
