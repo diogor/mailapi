@@ -1,3 +1,6 @@
+import os
+from base64 import b64encode
+import hashlib
 import ssl
 import email
 from uuid import uuid4
@@ -32,12 +35,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def make_password(password: str) -> (str, str):
+    salt = b64encode(os.urandom(32)).decode('utf-8')
+    password = b64encode(hashlib.pbkdf2_hmac(
+        'sha256', password.encode(), salt.encode(), 100000
+    )).decode('utf-8')
+    return (salt, password)
+
+
+def check_password(password: (str, str)) -> bool:
+    key = b64encode(hashlib.pbkdf2_hmac(
+        'sha256', password[1].encode(), password[0].encode(), 100000
+    )).decode('utf-8')
+    return password == key
+
+
 def connect() -> IMAPClient:
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
     m = IMAPClient("mail.dr6.com.br", ssl_context=ssl_context)
     return m
+
 
 def connect_imap(token: str) -> IMAPClient:
     db = TinyDB('session.json')
@@ -60,6 +79,7 @@ async def root():
     s = m.noop()
     return {"message": s}
 
+
 @app.get("/select/{mailbox}/{msgid}")
 async def message(mailbox: str, msgid: int, response: Response, token: str = Header(None)):
     m = connect_imap(token)
@@ -78,6 +98,7 @@ async def message(mailbox: str, msgid: int, response: Response, token: str = Hea
     else:
         body = message.get_payload()
     return {"header": message, "payload": body}
+
 
 @app.get("/select/{mailbox}")
 async def select(mailbox: str, response: Response, token: str = Header(None)):
@@ -108,6 +129,7 @@ async def select(mailbox: str, response: Response, token: str = Header(None)):
             })
     return sorted(lista, key = lambda i: i['date'], reverse=True) 
 
+
 @app.get("/mailboxes/")
 async def mailboxes(response: Response, token: str = Header(None)):
     m = connect_imap(token)
@@ -119,6 +141,7 @@ async def mailboxes(response: Response, token: str = Header(None)):
     folders = m.list_folders()
     return [folder[-1:][0] for folder in folders]
 
+
 @app.post("/login/")
 async def login(credentials: Login, response: Response):
     db = TinyDB('session.json')
@@ -127,12 +150,13 @@ async def login(credentials: Login, response: Response):
 
     try:
         res = m.login(credentials.username, credentials.password)
+        password = make_password(credentials.password)
+        db.remove((where('username') == credentials.username) & (where('password') == password))
         key = str(uuid4().hex)
-        db.remove(where('username') == credentials.username)
         db.insert({
             'token': key,
             'username': credentials.username,
-            'password': credentials.password}
+            'password': password}
         )
         return {"token": key}
 
